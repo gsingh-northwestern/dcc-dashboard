@@ -12,32 +12,74 @@
     <style>
         @import url('https://rsms.me/inter/inter.css');
         html { font-family: 'Inter', sans-serif; }
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50; }
     </style>
 </head>
 <body>
     <div id="root"></div>
+
+    <!-- Script 1: Firebase Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, doc, setDoc, onSnapshot, 
+            collection, query, writeBatch, orderBy, getDocs
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ===================================================================
+        // Your Firebase Config has been added here.
+        // ===================================================================
+        const firebaseConfig = {
+          apiKey: "AIzaSyADj4tf65DjTOF29MW7xGO0OVRHs_cYDdg",
+          authDomain: "dcc-nr-dashboard.firebaseapp.com",
+          projectId: "dcc-nr-dashboard",
+          storageBucket: "dcc-nr-dashboard.appspot.com",
+          messagingSenderId: "648912013604",
+          appId: "1:648912013604:web:f7824a262657ef8ca14bb1",
+          measurementId: "G-P0VDLG0LCR"
+        };
+        // ===================================================================
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            
+            await signInAnonymously(auth);
+
+            // Make ALL necessary Firebase services globally available to the next script
+            window.firebaseServices = {
+                db,
+                collection,
+                doc,
+                setDoc,
+                onSnapshot,
+                query,
+                orderBy,
+                writeBatch,
+                getDocs
+            };
+
+            // Signal that Firebase is ready
+            window.dispatchEvent(new CustomEvent('firebase-ready'));
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error);
+            // Display an error message to the user if Firebase fails to load
+            const root = document.getElementById('root');
+            root.innerHTML = `<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #555;">
+                <h2>Error Connecting to Database</h2>
+                <p>There was an error initializing the connection to the database. Please check the browser console for more details and verify your Firebase configuration.</p>
+            </div>`;
+        }
+    </script>
+
+    <!-- Script 2: React Application -->
     <script type="text/babel">
-// All JavaScript is now inside a single, robust script tag.
+const { useState, useEffect, useRef } = React;
+const { DragDropContext, Droppable, Draggable } = window.ReactBeautifulDnd;
 
 // ===================================================================
-// STEP 1: PASTE YOUR FIREBASE CONFIG OBJECT HERE
-// ===================================================================
-// Replace the placeholder object below with the one from your Firebase project settings.
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyADj4tf65DjTOF29MW7xGO0OVRHs_cYDdg",
-  authDomain: "dcc-nr-dashboard.firebaseapp.com",
-  projectId: "dcc-nr-dashboard",
-  storageBucket: "dcc-nr-dashboard.firebasestorage.app",
-  messagingSenderId: "648912013604",
-  appId: "1:648912013604:web:f7824a262657ef8ca14bb1",
-  measurementId: "G-P0VDLG0LCR"
-};
-// ===================================================================
-
-// ===================================================================
-// STEP 2: PASTE YOUR FULL RECOMMENDATIONS LIST HERE
+// PASTE YOUR FULL RECOMMENDATIONS LIST HERE FOR SEEDING
 // ===================================================================
 const FULL_RECOMMENDATIONS_LIST_FOR_SEEDING = [
   // =================================================================
@@ -2403,41 +2445,35 @@ const FULL_RECOMMENDATIONS_LIST_FOR_SEEDING = [
 
 // ===================================================================
 
-// Import Firebase functions directly from the CDN URLs
-const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-const { getFirestore, doc, setDoc, onSnapshot, collection, query, writeBatch, orderBy, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-await signInAnonymously(auth);
-
-// --- React App Starts Here ---
-const { useState, useEffect, useRef, useCallback } = React;
-const { DragDropContext, Droppable, Draggable } = window.ReactBeautifulDnd;
-
-const CATEGORIES = ["Physical Access", "Policy and Procedural Access", "Communication Access", "Provider Training Needs", "Disability Etiquette"];
-const CATEGORY_COLORS = { /* Color definitions remain the same */ };
-const TAB_ORDER = [...CATEGORIES, "All"];
-
 function App() {
+    // This will be populated once the 'firebase-ready' event fires
+    const [firebase, setFirebase] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    // ... all other state and functions from the previous version go here ...
 
     useEffect(() => {
+        const onFirebaseReady = () => {
+            setFirebase(window.firebaseServices);
+        };
+        // If firebaseServices is already available, use it. Otherwise, wait for the event.
+        if (window.firebaseServices) {
+            onFirebaseReady();
+        } else {
+            window.addEventListener('firebase-ready', onFirebaseReady);
+        }
+        return () => window.removeEventListener('firebase-ready', onFirebaseReady);
+    }, []);
+
+    useEffect(() => {
+        if (!firebase) return;
+
+        // Destructure the functions from the firebase object
+        const { db, collection, query, orderBy, onSnapshot } = firebase;
+
         const recsCollectionRef = collection(db, "recommendations");
         const q = query(recsCollectionRef, orderBy("order", "asc"));
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            setIsLoading(true);
-            if (querySnapshot.empty) {
-                setRecommendations([]);
-                setIsLoading(false);
-                return;
-            }
             const recsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setRecommendations(recsData);
             setIsLoading(false);
@@ -2447,29 +2483,45 @@ function App() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [firebase]);
 
     const seedDatabase = async () => {
+        if (!firebase) return;
+        const { db, collection, doc, writeBatch, getDocs, query } = firebase;
         setIsLoading(true);
+        
+        const recsCollectionRef = collection(db, "recommendations");
+        const existingDocs = await getDocs(query(recsCollectionRef));
+        if (!existingDocs.empty) {
+            if (!confirm("The database already has data. Overwriting it will erase all existing tags and ordering. Are you sure you want to continue?")) {
+                setIsLoading(false);
+                return;
+            }
+        }
+
         const batch = writeBatch(db);
         FULL_RECOMMENDATIONS_LIST_FOR_SEEDING.forEach((rec, index) => {
             const docRef = doc(db, "recommendations", rec.id);
             batch.set(docRef, { ...rec, order: index });
         });
+        
         try {
             await batch.commit();
-            alert("Database has been seeded successfully! The page will now show the live data.");
+            alert("Database has been seeded successfully!");
         } catch (error) {
             console.error("Error seeding database:", error);
-            alert("An error occurred while seeding the database. Check the console for details.");
         } finally {
             setIsLoading(false);
         }
     };
-
-    // All your other functions (onDragEnd, handleAddTag, etc.) would go here.
-    // They will work correctly in this new structure.
-
+    
+    // The rest of your App's logic (onDragEnd, handlers, JSX) would go here.
+    // It will work correctly now because `firebase` state is properly managed.
+    
+    if (!firebase) {
+        return <div className="text-center p-12 text-xl text-slate-500 animate-pulse">Initializing Services...</div>;
+    }
+    
     if (isLoading) {
         return <div className="text-center p-12 text-xl text-slate-500 animate-pulse">Connecting to Database...</div>;
     }
@@ -2477,19 +2529,20 @@ function App() {
     if (!isLoading && recommendations.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-                <h2 className="text-2xl font-bold text-slate-700 mb-4">Welcome to Your Collaborative Dashboard!</h2>
-                <p className="text-slate-500 mb-8">The database is currently empty. Click the button below to add your initial list of recommendations.</p>
+                <h2 className="text-2xl font-bold text-slate-700 mb-4">Welcome!</h2>
+                <p className="text-slate-500 mb-8 text-center max-w-md">Your dashboard is connected, but the database is empty. Click below to add your initial data.</p>
                 <button onClick={seedDatabase} className="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-all text-lg shadow-md">
-                    Seed Database with {FULL_RECOMMENDATIONS_LIST_FOR_SEEDING.length} Recommendations
+                    Seed Database
                 </button>
             </div>
         );
     }
     
     return (
-        <div className="bg-slate-50 min-h-screen font-sans text-slate-800">
-             <div className="text-center p-8">Your dashboard with {recommendations.length} recommendations would be displayed here.</div>
-             {/* The rest of your app's visual structure (tabs, cards, etc.) goes here */}
+        <div className="p-8">
+            <h1 className="text-3xl font-bold text-slate-800">Dashboard Loaded</h1>
+            <p className="text-slate-600">Successfully connected and loaded {recommendations.length} recommendations.</p>
+            {/* All of your final dashboard UI (tabs, filters, cards) would go here. */}
         </div>
     );
 }
@@ -2498,4 +2551,3 @@ ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
-```
