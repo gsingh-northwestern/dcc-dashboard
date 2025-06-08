@@ -25,14 +25,15 @@
         // They allow the app to securely connect to the correct database for this specific project.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = {
-    apiKey: "AIzaSyADj4tf65DjTOF29MW7xGO0OVRHs_cYDdg",
-    authDomain: "dcc-nr-dashboard.firebaseapp.com",
-    projectId: "dcc-nr-dashboard",
-    storageBucket: "dcc-nr-dashboard.firebasestorage.app",
-    messagingSenderId: "648912013604",
-    appId: "1:648912013604:web:f7824a262657ef8ca14bb1",
-    measurementId: "G-P0VDLG0LCR"
-  };
+          apiKey: "AIzaSyADj4tf65DjTOF29MW7xGO0OVRHs_cYDdg",
+          authDomain: "dcc-nr-dashboard.firebaseapp.com",
+          projectId: "dcc-nr-dashboard",
+          storageBucket: "dcc-nr-dashboard.firebasestorage.app",
+          messagingSenderId: "648912013604",
+          appId: "1:648912013604:web:f7824a262657ef8ca14bb1",
+          measurementId: "G-P0VDLG0LCR"
+        };  
+    
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         const app = initializeApp(firebaseConfig);
